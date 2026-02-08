@@ -11,18 +11,15 @@
  */
 
 #include "device/usbd_pvt.h"
-#include "pico/unique_id.h"
 #include "dln2.h"
+#include "dln2_log.h"
 
-#define LOG1    //printf
-#define LOG2    //printf
+#define DLN2_GENERIC_CMD(cmd) DLN2_CMD(cmd, DLN2_MODULE_GENERIC)
 
-#define DLN2_GENERIC_CMD(cmd)       DLN2_CMD(cmd, DLN2_MODULE_GENERIC)
+#define DLN2_CMD_GET_DEVICE_VER DLN2_GENERIC_CMD(0x30)
+#define DLN2_CMD_GET_DEVICE_SN DLN2_GENERIC_CMD(0x31)
 
-#define DLN2_CMD_GET_DEVICE_VER     DLN2_GENERIC_CMD(0x30)
-#define DLN2_CMD_GET_DEVICE_SN      DLN2_GENERIC_CMD(0x31)
-
-#define DLN2_HW_ID  0x200
+#define DLN2_HW_ID 0x200
 
 static uint8_t dln2_rhport;
 static uint8_t dln2_ep_in;
@@ -38,7 +35,8 @@ static void dln2_slot_enqueue(struct dln2_slot_queue *queue, struct dln2_slot *s
 {
     slot->next = NULL;
 
-    if (!queue->head) {
+    if (!queue->head)
+    {
         queue->head = slot;
         return;
     }
@@ -67,7 +65,8 @@ static void dln2_slots_init(void)
     dln2_slot_out = NULL;
     dln2_slot_in = NULL;
 
-    for (uint i = 0; i < DLN2_MAX_SLOTS; i++) {
+    for (unsigned int i = 0; i < DLN2_MAX_SLOTS; i++)
+    {
         struct dln2_slot *slot = &dln2_slots[i];
         slot->index = i;
         slot->len = 0;
@@ -85,7 +84,7 @@ static const char *dln2_handle_names[] = {
     [DLN2_HANDLE_ADC] = "ADC",
 };
 
-void _dln2_print_slot(struct dln2_slot *slot, uint indent, const char *caller)
+void _dln2_print_slot(struct dln2_slot *slot, uint32_t indent, const char *caller)
 {
     struct dln2_header *hdr = dln2_slot_header(slot);
 
@@ -95,18 +94,22 @@ void _dln2_print_slot(struct dln2_slot *slot, uint indent, const char *caller)
     else if (hdr->handle == DLN2_HANDLE_UNUSED)
         name = "UNUSED";
 
-    if (indent)
-        LOG1("%*s", indent, "");
+    if (indent > 0)
+        LOG_INFO("%*s", (int)indent, "");
+
     if (caller)
-        LOG1("%s: ", caller);
-    LOG1("[%u]: handle=%s[%u] id=%u size=%u echo=%u: len=%zu\n",
-           slot->index, name, hdr->handle, hdr->id, hdr->size, hdr->echo, slot->len);
+        LOG_INFO("%s: ", caller);
+
+    LOG_INFO("[%ld]: handle=%s[%u] id=%u size=%u echo=%u: len=%zu\n",
+         slot->index, name, hdr->handle, hdr->id, hdr->size, hdr->echo, slot->len);
 }
 
 static struct dln2_slot *dln2_slot_print_queue(struct dln2_slot_queue *queue)
 {
     for (struct dln2_slot *slot = queue->head; slot; slot = slot->next)
         _dln2_print_slot(slot, 4, NULL);
+
+    return NULL;
 }
 
 struct dln2_slot *dln2_get_slot(void)
@@ -126,15 +129,17 @@ static void dln2_put_slot(struct dln2_slot *slot)
 static void dln2_queue_slot_out(void)
 {
     struct dln2_slot *slot = dln2_get_slot();
-    if (!slot) {
-        LOG1("Run out of slots!\n");
+    if (!slot)
+    {
+        LOG_INFO("Run out of slots!\n");
         return;
     }
 
     dln2_print_slot(slot);
 
     bool ret = usbd_edpt_xfer(dln2_rhport, dln2_ep_out, slot->data, CFG_DLN2_BULK_ENPOINT_SIZE);
-    if (!ret) {
+    if (!ret)
+    {
         dln2_put_slot(slot);
         return;
     }
@@ -159,7 +164,7 @@ static void dln2_slot_in_xfer(void)
     if (dln2_slot_in)
         return;
 
-    LOG2("%s:\n", __func__);
+    LOG_DEBUG("%s:\n", __func__);
 
     struct dln2_slot *slot = dln2_slot_dequeue(&dln2_response_queue);
     if (!slot)
@@ -167,7 +172,8 @@ static void dln2_slot_in_xfer(void)
 
     struct dln2_response *response = dln2_slot_response(slot);
     bool ret = usbd_edpt_xfer(dln2_rhport, dln2_ep_in, slot->data, response->hdr.size);
-    if (!ret) {
+    if (!ret)
+    {
         dln2_put_slot(slot);
         return;
     }
@@ -184,7 +190,7 @@ void dln2_queue_slot_in(struct dln2_slot *slot)
 
 static bool _dln2_response(struct dln2_slot *slot, size_t len, uint16_t result)
 {
-    LOG2("%s: len=%zu result=%u\n", __func__, len, result);
+    LOG_DEBUG("%s: len=%zu result=%u\n", __func__, len, result);
 
     struct dln2_response *response = dln2_slot_response(slot);
     response->hdr.size = sizeof(*response) + len;
@@ -220,7 +226,7 @@ bool dln2_response_u32(struct dln2_slot *slot, uint32_t val)
 
 bool dln2_response_error(struct dln2_slot *slot, uint16_t result)
 {
-    LOG1("%s: handle=%u: result=0x%x (%u)\n", __func__, dln2_slot_header(slot)->handle, result, result);
+    LOG_INFO("%s: handle=%u: result=0x%x (%u)\n", __func__, dln2_slot_header(slot)->handle, result, result);
     return _dln2_response(slot, 0, result);
 }
 
@@ -228,12 +234,13 @@ static bool dln2_handle_ctrl(struct dln2_slot *slot)
 {
     struct dln2_header *hdr = dln2_slot_header(slot);
     size_t len = dln2_slot_header_data_size(slot);
-    pico_unique_board_id_t board_id;
+    uint8_t board_id[] = {0x50, 0x44, 0x34, 0x05, 0xc8, 0x9f, 0x59, 0x1c};
     uint64_t serial = 0;
 
-    LOG1("DLN2_HANDLE_CTRL:\n");
+    LOG_INFO("DLN2_HANDLE_CTRL:\n");
 
-    switch (hdr->id) {
+    switch (hdr->id)
+    {
     case DLN2_CMD_GET_DEVICE_VER:
         if (len)
             return dln2_response_error(slot, DLN2_RES_INVALID_COMMAND_SIZE);
@@ -241,10 +248,10 @@ static bool dln2_handle_ctrl(struct dln2_slot *slot)
     case DLN2_CMD_GET_DEVICE_SN:
         if (len)
             return dln2_response_error(slot, DLN2_RES_INVALID_COMMAND_SIZE);
-        pico_get_unique_board_id(&board_id);
-        for (uint i = 0; i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES; i++) {
+        for (unsigned int i = 0; i < 8; i++)
+        {
             serial <<= 8;
-            serial |= board_id.id[i];
+            serial |= board_id[i];
         }
         return dln2_response_u32(slot, serial); // truncates
     default:
@@ -258,7 +265,8 @@ static bool dln2_handle(struct dln2_slot *slot)
 
     dln2_print_slot(slot);
 
-    switch (hdr->handle) {
+    switch (hdr->handle)
+    {
     case DLN2_HANDLE_CTRL:
         return dln2_handle_ctrl(slot);
     case DLN2_HANDLE_GPIO:
@@ -276,7 +284,7 @@ static bool dln2_handle(struct dln2_slot *slot)
 
 bool dln2_xfer_out(size_t len)
 {
-    LOG2("%s: len=%zu\n", __func__, len);
+    LOG_DEBUG("%s: len=%zu\n", __func__, len);
 
     struct dln2_slot *slot = dln2_slot_out;
     TU_ASSERT(slot);
@@ -287,32 +295,49 @@ bool dln2_xfer_out(size_t len)
 
     size_t slot_len = slot->len;
     slot->len += len;
-    if (!slot_len) {
-        if (len < sizeof(struct dln2_header)) {
+    if (!slot_len)
+    {
+        if (len < sizeof(struct dln2_header))
+        {
             dln2_response_error(slot, DLN2_RES_INVALID_MESSAGE_SIZE);
-        } else if (len < CFG_DLN2_BULK_ENPOINT_SIZE) {
+        }
+        else if (len < CFG_DLN2_BULK_ENPOINT_SIZE)
+        {
             if (hdr->size != len)
                 dln2_response_error(slot, DLN2_RES_INVALID_MESSAGE_SIZE);
             else
                 dln2_handle(slot);
-        } else if (len > CFG_DLN2_BULK_ENPOINT_SIZE) {
+        }
+        else if (len > CFG_DLN2_BULK_ENPOINT_SIZE)
+        {
             dln2_response_error(slot, DLN2_RES_FAIL); // shouldn't be possible...
-        } else if (hdr->size > DLN2_BUF_SIZE) {
+        }
+        else if (hdr->size > DLN2_BUF_SIZE)
+        {
             dln2_response_error(slot, DLN2_RES_INVALID_MESSAGE_SIZE);
-        } else if (hdr->size == CFG_DLN2_BULK_ENPOINT_SIZE) {
+        }
+        else if (hdr->size == CFG_DLN2_BULK_ENPOINT_SIZE)
+        {
             dln2_handle(slot);
-        } else {
+        }
+        else
+        {
             bool ret = usbd_edpt_xfer(dln2_rhport, dln2_ep_out,
                                       slot->data + CFG_DLN2_BULK_ENPOINT_SIZE, hdr->size - CFG_DLN2_BULK_ENPOINT_SIZE);
-            if (!ret) {
+            if (!ret)
+            {
                 dln2_response_error(slot, DLN2_RES_FAIL);
-            } else {
+            }
+            else
+            {
                 // Wait for the rest of this message
                 dln2_slot_out = slot;
                 return true;
             }
         }
-    } else {
+    }
+    else
+    {
         if (slot->len != hdr->size)
             dln2_response_error(slot, DLN2_RES_INVALID_MESSAGE_SIZE);
         else
@@ -326,18 +351,18 @@ bool dln2_xfer_out(size_t len)
 
 bool dln2_xfer_in(size_t len)
 {
-    LOG2("%s: len=%zu\n", __func__, len);
+    LOG_DEBUG("%s: len=%zu\n", __func__, len);
 
     struct dln2_slot *slot = dln2_slot_in;
     TU_ASSERT(slot);
 
     dln2_slot_in = NULL;
 
-    //dln2_print_slot(slot);
+    // dln2_print_slot(slot);
 
     struct dln2_response *response = dln2_slot_response(slot);
     if (len != response->hdr.size)
-        LOG1("len != response->hdr.size\n");
+        LOG_INFO("len != response->hdr.size\n");
 
     dln2_put_slot(slot);
 
@@ -346,5 +371,29 @@ bool dln2_xfer_in(size_t len)
 
     dln2_slot_in_xfer();
 
+    return true;
+}
+
+bool dln2_handle_i2c(struct dln2_slot *slot)
+{
+    LOG_INFO("Handle I2C slot ");
+
+    /* Random-ish behavior: handle only even IDs */
+    return true;
+}
+
+bool dln2_handle_spi(struct dln2_slot *slot)
+{
+    LOG_INFO("Handle SPI slot ");
+
+    /* Pretend SPI is not ready yet */
+    return false;
+}
+
+bool dln2_handle_adc(struct dln2_slot *slot)
+{
+    LOG_INFO("Handle ADC slot");
+
+    /* Always succeeds */
     return true;
 }
