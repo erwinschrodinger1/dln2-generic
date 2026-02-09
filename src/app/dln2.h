@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include "gpio_driver.h"
 #include "common/tusb_common.h"
+#include "gpio_driver.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -155,9 +155,9 @@ bool dln2_pin_is_requested(uint16_t pin, uint8_t module);
 uint16_t dln2_pin_request(uint16_t pin, uint8_t module);
 uint16_t dln2_pin_free(uint16_t pin, uint8_t module);
 
-struct dln2_peripherials
-{
+struct dln2_peripherials {
   struct gpio_driver *gpio;
+  struct adc_driver *adc;
 };
 
 void dln2_gpio_init(struct dln2_peripherials *peripherals);
@@ -170,7 +170,4 @@ bool dln2_handle_spi(struct dln2_slot *slot);
 void dln2_adc_init(struct dln2_peripherials *peripherals);
 bool dln2_handle_adc(struct dln2_slot *slot);
 
-
 #endif
-
-

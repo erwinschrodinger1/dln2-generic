@@ -30,7 +30,7 @@ set(APP_SOURCES
     src/app/dln2-pin.c
 #     src/app/dln2-i2c.c
 #     src/app/dln2-spi.c
-#     src/app/dln2-adc.c
+     src/app/dln2-adc.c
 #     src/app/dln2-pwm.c
 )
 
