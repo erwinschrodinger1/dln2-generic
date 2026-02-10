@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef void (*gpio_irq_callback_t)(unsigned int gpio, uint32_t event_mask);
 
@@ -35,7 +35,9 @@ struct gpio_driver {
   void (*set_dir)(uint32_t gpio, bool out);
   uint32_t (*get_dir)(uint32_t gpio);
   void (*set_irq_enabled)(uint32_t gpio, uint32_t event_mask, bool enabled);
+  void (*intr_enable)(uint32_t gpio);
   void (*set_irq_callback)(gpio_irq_callback_t callback);
+  void (*uninstall_irq_callback)(void);
 };
 
 #endif
