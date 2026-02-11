@@ -382,10 +382,4 @@ bool dln2_handle_spi(struct dln2_slot *slot)
     return false;
 }
 
-bool dln2_handle_adc(struct dln2_slot *slot)
-{
-    LOG_INFO("Handle ADC slot");
 
-    /* Always succeeds */
-    return true;
-}

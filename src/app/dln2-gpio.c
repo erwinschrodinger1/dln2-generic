@@ -12,8 +12,8 @@
  */
 
 #include "dln2.h"
-#include "gpio_driver.h"
 #include "dln2_log.h"
+#include "gpio_driver.h"
 #include <stdio.h>
 
 #define DLN2_GPIO_CMD(cmd) DLN2_CMD(cmd, DLN2_MODULE_GPIO)
@@ -158,8 +158,8 @@ static bool dln2_gpio_pin_enable(struct dln2_slot *slot, bool enable) {
 
     if (pin != LED_PIN) {
       _gpio_driver->init(pin);
-      _gpio_driver->pull_down(
-          pin); // Some other function could have changed this (adc)
+      //      _gpio_driver->pull_down(
+      //          pin); // Some other function could have changed this (adc)
     }
   } else {
     int res = dln2_pin_free(pin, DLN2_MODULE_GPIO);
@@ -386,9 +386,8 @@ static void dln2_gpio_irq_callback(unsigned int gpio, uint32_t events) {
   LOG_DEBUG("%u\n", value);
 }
 
-void dln2_gpio_init(struct dln2_peripherials *peripherals)
-{                           
-  _gpio_driver = (peripherals->gpio); 
+void dln2_gpio_init(struct dln2_peripherials *peripherals) {
+  _gpio_driver = (peripherals->gpio);
   _gpio_driver->set_irq_callback(&dln2_gpio_irq_callback);
   // irq_set_enabled(IO_IRQ_BANK0, true);
 }
