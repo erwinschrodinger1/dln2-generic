@@ -19,6 +19,12 @@
 
 #define DLN2_ADC_CMD(cmd) ((DLN2_MODULE_ADC << 8) | (cmd))
 
+// NOTE: THERE IS NO SUPPORT FOR PORT SWITCHING IN THE LINUX DRIVER
+// ALWAYS USE PORT 0
+// implement channel switching in adc_read in mcu specific code
+
+// no implementation of get port count in linux driver
+// #define DLN2_ADC_GET_PORT_COUNT DLN2_ADC_CMD(0x00)
 #define DLN2_ADC_GET_CHANNEL_COUNT DLN2_ADC_CMD(0x01)
 #define DLN2_ADC_ENABLE DLN2_ADC_CMD(0x02)
 #define DLN2_ADC_DISABLE DLN2_ADC_CMD(0x03)
@@ -33,8 +39,6 @@
 #define DLN2_ADC_EVENT_NONE 0
 #define DLN2_ADC_EVENT_ALWAYS 5
 
-#define DLN2_ADC_NUM_CHANNELS 3
-#define DLN2_ADC_MAX_CHANNELS 8
 // #define DLN2_ADC_DATA_BITS      10
 
 struct dln2_adc_port_chan {
@@ -42,22 +46,18 @@ struct dln2_adc_port_chan {
   uint8_t chan;
 } TU_ATTR_PACKED;
 
-struct dln2_adc_get_all_vals {
-  uint16_t channel_mask;
-  uint16_t values[DLN2_ADC_MAX_CHANNELS];
-} TU_ATTR_PACKED;
-
-static adc_repeating_timer_t *dln2_adc_event_timer;
 struct adc_driver *_adc_driver;
 
-static uint16_t dln2_adc_read(uint16_t input) {
+static adc_repeating_timer_t *dln2_adc_event_timer;
+
+static uint16_t dln2_adc_read(uint8_t port, uint16_t channel) {
   //   adc_select_input(input);
   //   // The Linux driver has a fixed 10-bit resolution
   //   // It is possible to return the full value, but userspace might choke on
   //   the
   //   // out of bounds value
   //   return adc_read() >> 2;
-  return _adc_driver->read(input);
+  return _adc_driver->read(port, _adc_driver->ports[port].channels[channel]);
 }
 
 static bool dln2_adc_channel_enable(struct dln2_slot *slot, bool enable) {
@@ -68,17 +68,18 @@ static bool dln2_adc_channel_enable(struct dln2_slot *slot, bool enable) {
            enable ? "DLN2_ADC_CHANNEL_ENABLE" : "DLN2_ADC_CHANNEL_DISABLE",
            port_chan->port, port_chan->chan);
 
-  if (port_chan->chan >= DLN2_ADC_NUM_CHANNELS)
+  if (port_chan->chan >= _adc_driver->ports[port_chan->port].channel_count)
     dln2_response_error(slot, DLN2_RES_INVALID_CHANNEL_NUMBER);
 
-  uint16_t pin = port_chan->chan + 26;
+  uint16_t pin = _adc_driver->ports[port_chan->port].channels[port_chan->chan];
 
   if (enable) {
     int res = dln2_pin_request(pin, DLN2_MODULE_ADC);
     if (res)
       return dln2_response_error(slot, res);
 
-    _adc_driver->adc_gpio_init(pin);
+    LOG_DEBUG("ERROR HERE");
+    _adc_driver->channel_enable(port_chan->port, pin);
   } else if (dln2_pin_is_requested(pin, DLN2_MODULE_ADC)) {
     int res = dln2_pin_free(pin, DLN2_MODULE_ADC);
     if (res)
@@ -98,10 +99,16 @@ static bool dln2_adc_enable(struct dln2_slot *slot, bool enable) {
   LOG_INFO("%s: port=%u\n", enable ? "DLN2_ADC_ENABLE" : "DLN2_ADC_DISABLE",
            *port);
 
+  if (enable) {
+    _adc_driver->port_enable(*port);
+  }
   if (!enable) {
     _adc_driver->cancel_repeating_timer(dln2_adc_event_timer);
-    for (uint16_t pin = 26; pin <= 28; pin++)
-      dln2_pin_free(pin, DLN2_MODULE_ADC);
+    _adc_driver->port_disable(*port);
+    for (uint16_t chan = 0; chan < _adc_driver->ports[*port].channel_count;
+         chan++) {
+      dln2_pin_free(_adc_driver->ports[*port].channels[chan], DLN2_MODULE_ADC);
+    }
   }
 
   put_unaligned_le16(conflict, dln2_slot_response_data(slot));
@@ -115,10 +122,10 @@ static bool dln2_adc_channel_get_val(struct dln2_slot *slot) {
   LOG_INFO("DLN2_ADC_CHANNEL_GET_VAL: port=%u chan=%u\n", port_chan->port,
            port_chan->chan);
 
-  if (port_chan->chan >= DLN2_ADC_NUM_CHANNELS)
+  if (port_chan->chan >= _adc_driver->ports[port_chan->port].channel_count)
     dln2_response_error(slot, DLN2_RES_INVALID_CHANNEL_NUMBER);
 
-  uint16_t value = dln2_adc_read(port_chan->chan);
+  uint16_t value = dln2_adc_read(port_chan->port, port_chan->chan);
   put_unaligned_le16(value, dln2_slot_response_data(slot));
   return dln2_response(slot, sizeof(value));
 }
@@ -127,7 +134,7 @@ static bool dln2_adc_channel_get_all_val(struct dln2_slot *slot) {
   uint8_t *port = dln2_slot_header_data(slot);
   uint16_t *channel_mask = dln2_slot_response_data(slot);
   uint16_t *values = channel_mask + 1;
-  size_t len = sizeof(uint16_t) * (DLN2_ADC_MAX_CHANNELS + 1);
+  size_t len = sizeof(uint16_t) * (_adc_driver->port_count + 1);
 
   DLN2_VERIFY_COMMAND_SIZE(slot, sizeof(*port));
   LOG_INFO("DLN2_ADC_CHANNEL_GET_ALL_VAL: port=%u\n", *port);
@@ -139,8 +146,8 @@ static bool dln2_adc_channel_get_all_val(struct dln2_slot *slot) {
   put_unaligned_le16(0x0000, channel_mask);
 
   // Sample time: 3x 2us ~= 6us
-  for (uint16_t i = 0; i < DLN2_ADC_NUM_CHANNELS; i++) {
-    values[i] = dln2_adc_read(i);
+  for (uint16_t i = 0; i < _adc_driver->ports[*port].channel_count; i++) {
+    values[i] = dln2_adc_read(*port, i);
   }
 
   return dln2_response(slot, len);
@@ -242,13 +249,18 @@ bool dln2_handle_adc(struct dln2_slot *slot) {
   struct dln2_header *hdr = dln2_slot_header(slot);
 
   switch (hdr->id) {
+    // no implementation of get port count in linux driver
+    //  case DLN2_ADC_GET_PORT_COUNT:
+    //    LOG_INFO("DLN2_ADC_GET_PORT_COUNT\n");
+    //    DLN2_VERIFY_COMMAND_SIZE(slot, 1);
+    //    _adc_driver->init();
+    //    return dln2_response_u8(slot, _adc_driver->port_count);
   case DLN2_ADC_GET_CHANNEL_COUNT:
     LOG_INFO("DLN2_ADC_GET_CHANNEL_COUNT\n");
     DLN2_VERIFY_COMMAND_SIZE(slot, 1);
-    // might not be necessary in our case
-    // TODO: check port
-    //    adc_init();
-    return dln2_response_u8(slot, DLN2_ADC_NUM_CHANNELS);
+    uint8_t *port = dln2_slot_header_data(slot);
+    _adc_driver->init();
+    return dln2_response_u8(slot, _adc_driver->ports[*port].channel_count);
   case DLN2_ADC_ENABLE:
     return dln2_adc_enable(slot, true);
   case DLN2_ADC_DISABLE:
@@ -272,4 +284,8 @@ bool dln2_handle_adc(struct dln2_slot *slot) {
     LOG_INFO("ADC command not supported: 0x%04x\n", hdr->id);
     return dln2_response_error(slot, DLN2_RES_COMMAND_NOT_SUPPORTED);
   }
+}
+
+void dln2_adc_init(struct dln2_peripherials *peripherals) {
+  _adc_driver = peripherals->adc;
 }
