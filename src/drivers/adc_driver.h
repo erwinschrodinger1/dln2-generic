@@ -15,6 +15,7 @@ struct adc_driver {
   uint16_t *ports;
   // for general adc init if required
   int (*init)();
+  void (*deinit)();
   int (*read)(uint16_t input);
   bool (*add_repeating_timer_us)(int64_t delay_us,
                                  adc_repeating_timer_callback_t callback,

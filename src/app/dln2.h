@@ -23,8 +23,8 @@
 
 #define DLN2_MODULE_GENERIC 0x00
 #define DLN2_MODULE_GPIO 0x01
-#define DLN2_MODULE_SPI 0x02
-#define DLN2_MODULE_I2C 0x03
+#define DLN2_MODULE_SPI_MASTER 0x02
+#define DLN2_MODULE_I2C_MASTER 0x03
 #define DLN2_MODULE_ADC 0x06
 #define DLN2_MODULE_UART 0x0e
 
@@ -158,14 +158,17 @@ uint16_t dln2_pin_free(uint16_t pin, uint8_t module);
 struct dln2_peripherials {
   struct gpio_driver *gpio;
   struct adc_driver *adc;
+  struct i2c_master_driver *i2c_master;
+  struct spi_master_driver *spi_master;
 };
 
+void dln2_delay(uint32_t millisec);
 void dln2_gpio_init(struct dln2_peripherials *peripherals);
 void dln2_gpio_task();
 bool dln2_handle_gpio(struct dln2_slot *slot);
-void dln2_i2c_init(struct dln2_peripherials *peripherals);
+void dln2_i2c_master_init(struct dln2_peripherials *peripherals);
 bool dln2_handle_i2c(struct dln2_slot *slot);
-void dln2_spi_init(struct dln2_peripherials *peripherals);
+void dln2_spi_master_init(struct dln2_peripherials *peripherals);
 bool dln2_handle_spi(struct dln2_slot *slot);
 void dln2_adc_init(struct dln2_peripherials *peripherals);
 bool dln2_handle_adc(struct dln2_slot *slot);
