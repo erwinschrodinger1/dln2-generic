@@ -22,7 +22,7 @@
 
 #define DLN2_SPI_DEFAULT_FREQUENCY (1 * 1000 * 1000) // 1MHz
 
-#define DLN2_SPI_CMD(cmd) DLN2_CMD(cmd, DLN2_MODULE_SPI)
+#define DLN2_SPI_CMD(cmd) DLN2_CMD(cmd, DLN2_MODULE_SPI_MASTER)
 
 /* SPI commands used by the Linux driver */
 #define DLN_SPI_MASTER_GET_PORT_COUNT DLN2_SPI_CMD(0x00)
@@ -52,8 +52,8 @@
 
 static uint8_t dln2_spi_tmp_buf[DLN2_SPI_MAX_XFER_SIZE];
 
-struct spi_driver *_spi_driver;
-struct gpio_driver *_gpio_driver;
+struct spi_master_driver *_spi_driver;
+struct gpio_master_driver *_gpio_driver;
 
 static bool dln2_spi_enable(struct dln2_slot *slot, bool enable) {
   uint8_t *port = dln2_slot_header_data(slot);
@@ -77,20 +77,20 @@ static bool dln2_spi_enable(struct dln2_slot *slot, bool enable) {
     return dln2_response_error(slot, DLN2_RES_INVALID_PORT_NUMBER);
 
   if (enable) {
-    res = dln2_pin_request(sck, DLN2_MODULE_SPI);
+    res = dln2_pin_request(sck, DLN2_MODULE_SPI_MASTER);
     if (res)
       return dln2_response_error(slot, res);
 
-    res = dln2_pin_request(mosi, DLN2_MODULE_SPI);
+    res = dln2_pin_request(mosi, DLN2_MODULE_SPI_MASTER);
     if (res) {
-      dln2_pin_free(sck, DLN2_MODULE_SPI);
+      dln2_pin_free(sck, DLN2_MODULE_SPI_MASTER);
       return dln2_response_error(slot, res);
     }
 
-    res = dln2_pin_request(miso, DLN2_MODULE_SPI);
+    res = dln2_pin_request(miso, DLN2_MODULE_SPI_MASTER);
     if (res) {
-      dln2_pin_free(sck, DLN2_MODULE_SPI);
-      dln2_pin_free(mosi, DLN2_MODULE_SPI);
+      dln2_pin_free(sck, DLN2_MODULE_SPI_MASTER);
+      dln2_pin_free(mosi, DLN2_MODULE_SPI_MASTER);
       return dln2_response_error(slot, res);
     }
 
@@ -105,17 +105,17 @@ static bool dln2_spi_enable(struct dln2_slot *slot, bool enable) {
     gpio_set_function(mosi, GPIO_FUNC_SPI);
     gpio_set_function(miso, GPIO_FUNC_SPI);
   } else {
-    res = dln2_pin_free(sck, DLN2_MODULE_SPI);
+    res = dln2_pin_free(sck, DLN2_MODULE_SPI_MASTER);
     if (res)
       return dln2_response_error(slot, res);
     gpio_set_function(sck, GPIO_FUNC_NULL);
 
-    res = dln2_pin_free(mosi, DLN2_MODULE_SPI);
+    res = dln2_pin_free(mosi, DLN2_MODULE_SPI_MASTER);
     if (res)
       return dln2_response_error(slot, res);
     gpio_set_function(mosi, GPIO_FUNC_NULL);
 
-    res = dln2_pin_free(miso, DLN2_MODULE_SPI);
+    res = dln2_pin_free(miso, DLN2_MODULE_SPI_MASTER);
     if (res)
       return dln2_response_error(slot, res);
     gpio_set_function(miso, GPIO_FUNC_NULL);
@@ -370,15 +370,15 @@ static bool dln2_spi_ss_multi_enable(struct dln2_slot *slot, bool enable) {
     return dln2_response_error(slot, DLN2_RES_SPI_MASTER_INVALID_SS_VALUE);
 
   if (enable) {
-    int res = dln2_pin_request(cs, DLN2_MODULE_SPI);
-    if (res)
+    int res = dln2_pin_request(cs, DLN2_MODULE_SPI_MASTER);
+    if (res)dln2_spi_init
       return dln2_response_error(slot, res);
 
     gpio_init(cs);
     gpio_set_dir(cs, GPIO_OUT);
     gpio_put(cs, 1);
   } else {
-    int res = dln2_pin_free(cs, DLN2_MODULE_SPI);
+    int res = dln2_pin_free(cs, DLN2_MODULE_SPI_MASTER);
     if (res)
       return dln2_response_error(slot, res);
 
@@ -501,7 +501,7 @@ bool dln2_handle_spi(struct dln2_slot *slot) {
   }
 }
 
-void dln2_spi_init(struct dln2_peripherials *peripherals) {
+void dln2_spi_master_init(struct dln2_peripherials *peripherals) {
   _spi_driver = peripherals->spi;
   _gpio_driver = peripherals->gpio;
 }

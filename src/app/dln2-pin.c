@@ -14,7 +14,7 @@
 #include "dln2.h"
 
 
-#define DLN2_PIN_MAX 32
+#define DLN2_PIN_MAX 44
 #define DLN2_PIN_NOT_AVAILABLE 0xff
 
 struct dln2_pin_state

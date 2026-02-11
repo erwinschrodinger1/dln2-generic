@@ -374,14 +374,6 @@ bool dln2_xfer_in(size_t len)
     return true;
 }
 
-bool dln2_handle_i2c(struct dln2_slot *slot)
-{
-    LOG_INFO("Handle I2C slot ");
-
-    /* Random-ish behavior: handle only even IDs */
-    return true;
-}
-
 bool dln2_handle_spi(struct dln2_slot *slot)
 {
     LOG_INFO("Handle SPI slot ");
