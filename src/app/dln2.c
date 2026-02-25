@@ -137,7 +137,7 @@ static void dln2_queue_slot_out(void)
 
     dln2_print_slot(slot);
 
-    bool ret = usbd_edpt_xfer(dln2_rhport, dln2_ep_out, slot->data, CFG_DLN2_BULK_ENPOINT_SIZE);
+    bool ret = usbd_edpt_xfer(dln2_rhport, dln2_ep_out, slot->data, CFG_DLN2_BULK_ENPOINT_SIZE, false);
     if (!ret)
     {
         dln2_put_slot(slot);
@@ -171,7 +171,7 @@ static void dln2_slot_in_xfer(void)
         return;
 
     struct dln2_response *response = dln2_slot_response(slot);
-    bool ret = usbd_edpt_xfer(dln2_rhport, dln2_ep_in, slot->data, response->hdr.size);
+    bool ret = usbd_edpt_xfer(dln2_rhport, dln2_ep_in, slot->data, response->hdr.size, false);
     if (!ret)
     {
         dln2_put_slot(slot);
@@ -323,7 +323,7 @@ bool dln2_xfer_out(size_t len)
         else
         {
             bool ret = usbd_edpt_xfer(dln2_rhport, dln2_ep_out,
-                                      slot->data + CFG_DLN2_BULK_ENPOINT_SIZE, hdr->size - CFG_DLN2_BULK_ENPOINT_SIZE);
+                                      slot->data + CFG_DLN2_BULK_ENPOINT_SIZE, hdr->size - CFG_DLN2_BULK_ENPOINT_SIZE, false);
             if (!ret)
             {
                 dln2_response_error(slot, DLN2_RES_FAIL);
