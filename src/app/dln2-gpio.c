@@ -157,7 +157,7 @@ static bool dln2_gpio_pin_enable(struct dln2_slot *slot, bool enable) {
       return dln2_response_error(slot, res);
 
     if (pin != LED_PIN) {
-      _gpio_driver->init(pin);
+      _gpio_driver->init(_gpio_driver->pins[pin]);
       //      _gpio_driver->pull_down(
       //          pin); // Some other function could have changed this (adc)
     }
@@ -166,7 +166,7 @@ static bool dln2_gpio_pin_enable(struct dln2_slot *slot, bool enable) {
     if (res)
       return dln2_response_error(slot, res);
     if (pin != LED_PIN)
-      _gpio_driver->deinit(pin);
+      _gpio_driver->deinit(_gpio_driver->pins[pin]);
   }
   return dln2_response(slot, 0);
 }
@@ -192,11 +192,12 @@ static bool dln2_gpio_pin_set_event_cfg(struct dln2_slot *slot) {
   if (cmd->pin == LED_PIN)
     return dln2_response_error(slot, DLN2_RES_INVALID_VALUE);
 
-  assign_bit(cmd->pin, prev_values, _gpio_driver->get(cmd->pin));
+  assign_bit(cmd->pin, prev_values,
+             _gpio_driver->get(_gpio_driver->pins[cmd->pin]));
 
   switch (cmd->type) {
   case DLN2_GPIO_EVENT_NONE:
-    _gpio_driver->set_irq_enabled(cmd->pin,
+    _gpio_driver->set_irq_enabled(_gpio_driver->pins[cmd->pin],
                                   GPIO_IRQ_LEVEL_LOW | GPIO_IRQ_LEVEL_HIGH |
                                       GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
                                   false);
@@ -212,10 +213,12 @@ static bool dln2_gpio_pin_set_event_cfg(struct dln2_slot *slot) {
   // according to the docs:
   // http://dlnware.com/dll/DLN_GPIO_EVENT_LEVEL_HIGH-Events
   case DLN2_GPIO_EVENT_LVL_HIGH:
-    _gpio_driver->set_irq_enabled(cmd->pin, GPIO_IRQ_EDGE_RISE, true);
+    _gpio_driver->set_irq_enabled(_gpio_driver->pins[cmd->pin],
+                                  GPIO_IRQ_EDGE_RISE, true);
     break;
   case DLN2_GPIO_EVENT_LVL_LOW:
-    _gpio_driver->set_irq_enabled(cmd->pin, GPIO_IRQ_EDGE_FALL, true);
+    _gpio_driver->set_irq_enabled(_gpio_driver->pins[cmd->pin],
+                                  GPIO_IRQ_EDGE_FALL, true);
     break;
   default:
     return dln2_response_error(slot, DLN2_RES_INVALID_EVENT_TYPE);
@@ -243,15 +246,15 @@ bool dln2_handle_gpio(struct dln2_slot *slot) {
     return dln2_response_error(slot, DLN2_RES_COMMAND_NOT_SUPPORTED);
   case DLN2_GPIO_PIN_GET_VAL:
     DLN2_GPIO_GET_PIN_VERIFY(slot, pin, NULL);
-    val = _gpio_driver->get(pin);
+    val = _gpio_driver->get(_gpio_driver->pins[pin]);
     return dln2_gpio_response_pin_val(slot, pin, &val);
   case DLN2_GPIO_PIN_SET_OUT_VAL:
     DLN2_GPIO_GET_PIN_VERIFY(slot, pin, &val);
-    _gpio_driver->put(pin, val);
+    _gpio_driver->put(_gpio_driver->pins[pin], val);
     return dln2_gpio_response_pin_val(slot, pin, NULL);
   case DLN2_GPIO_PIN_GET_OUT_VAL:
     DLN2_GPIO_GET_PIN_VERIFY(slot, pin, NULL);
-    val = _gpio_driver->get_out_level(pin);
+    val = _gpio_driver->get_out_level(_gpio_driver->pins[pin]);
     return dln2_gpio_response_pin_val(slot, pin, &val);
   case DLN2_GPIO_PIN_ENABLE:
     return dln2_gpio_pin_enable(slot, true);
@@ -261,11 +264,11 @@ bool dln2_handle_gpio(struct dln2_slot *slot) {
     DLN2_GPIO_GET_PIN_VERIFY(slot, pin, &val);
     if (pin == LED_PIN && !val)
       return dln2_response_error(slot, DLN2_RES_INVALID_VALUE);
-    _gpio_driver->set_dir(pin, val);
+    _gpio_driver->set_dir(_gpio_driver->pins[pin], val);
     return dln2_gpio_response_pin_val(slot, pin, NULL);
   case DLN2_GPIO_PIN_GET_DIRECTION:
     DLN2_GPIO_GET_PIN_VERIFY(slot, pin, NULL);
-    val = _gpio_driver->get_dir(pin);
+    val = _gpio_driver->get_dir(_gpio_driver->pins[pin]);
     return dln2_gpio_response_pin_val(slot, pin, &val);
   case DLN2_GPIO_PIN_SET_EVENT_CFG:
     return dln2_gpio_pin_set_event_cfg(slot);

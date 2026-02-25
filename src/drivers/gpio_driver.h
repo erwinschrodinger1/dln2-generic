@@ -10,7 +10,7 @@ typedef void (*gpio_irq_callback_t)(unsigned int gpio, uint32_t event_mask);
 
 struct gpio_driver {
   uint32_t gpio_count;
-  uint32_t *pin;
+  uint32_t *pins;
 
   /*! \brief Initialise a GPIO for (enabled I/O and set func to GPIO_FUNC_SIO)
    *  \ingroup hardware_gpio
