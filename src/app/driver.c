@@ -13,7 +13,6 @@
 #include "device/usbd_pvt.h"
 #include "dln2.h"
 #include "dln2_log.h"
-#include "esp_log.h"
 #include "tusb_option.h"
 
 #define LOG1 // printf
