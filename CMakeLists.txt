@@ -34,6 +34,10 @@ set(APP_SOURCES
 #     src/app/dln2-pwm.c
 )
 
+set(TUSB_SOURCES
+    src/tusb/usb_descriptors.c
+)
+
 # ESP-IDF component build
 if(ESP_PLATFORM)
     idf_component_register(
@@ -47,46 +51,19 @@ if(ESP_PLATFORM)
 
     idf_component_get_property(tusb_lib espressif__tinyusb COMPONENT_LIB)
 
+    target_include_directories(${tusb_lib} PUBLIC "${COMPONENT_DIR}/src/tusb")
+target_sources(${tusb_lib} PUBLIC ${TUSB_SOURCES})
+
 else()
-    # Standard CMake library build (for STM32 and others)
-    project(dln2-generic C)
-    
-    add_library(dln2-generic STATIC
-        ${APP_SOURCES}
-        ${DRIVER_SOURCES}
-    )
-    
-    target_include_directories(dln2-generic
+  target_include_directories(${PROJECT_NAME}
         PUBLIC
-            ${CMAKE_CURRENT_LIST_DIR}/src/driver
+            ${CMAKE_CURRENT_LIST_DIR}/src/drivers
             ${CMAKE_CURRENT_LIST_DIR}/src/app
             ${CMAKE_CURRENT_LIST_DIR}/src/utils
+            ${CMAKE_CURRENT_LIST_DIR}/src/tusb
     )
+
+target_sources(${PROJECT_NAME} PRIVATE ${APP_SOURCES} ${DRIVER_SOURCES} ${TUSB_SOURCES})
     
-    # Platform-specific configurations
-    if(PLATFORM STREQUAL "STM32")
-        # Add STM32 HAL includes if needed
-        if(DEFINED STM32_HAL_INCLUDE_DIRS)
-            target_include_directories(dln2-generic PRIVATE
-                ${STM32_HAL_INCLUDE_DIRS}
-            )
-        endif()
-        
-        # Link STM32 libraries if needed
-        # target_link_libraries(dln2-generic PRIVATE stm32_hal)
-    endif()
-    
-    # Optional: Installation rules
-    install(TARGETS dln2-generic
-        ARCHIVE DESTINATION lib
-        LIBRARY DESTINATION lib
-    )
-    
-    install(DIRECTORY src/driver/ src/app/
-        DESTINATION include/dln2-generic
-        FILES_MATCHING PATTERN "*.h"
-    )
 endif()
 
-target_include_directories(${tusb_lib} PUBLIC "${COMPONENT_DIR}/src/tusb")
-target_sources(${tusb_lib} PUBLIC "${COMPONENT_DIR}/src/tusb/usb_descriptors.c")
