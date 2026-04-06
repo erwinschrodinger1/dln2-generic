@@ -35,7 +35,6 @@
 #define DLN2_GPIO_EVENT_LVL_HIGH 2
 #define DLN2_GPIO_EVENT_LVL_LOW 3
 
-#define DLN2_GPIO_NUM_PINS 29
 
 #ifdef PICO_DEFAULT_LED_PIN
 #define LED_PIN PICO_DEFAULT_LED_PIN
@@ -111,7 +110,7 @@ static int dln2_gpio_slot_pin_val(struct dln2_slot *slot, uint8_t *val) {
 
   void *data = dln2_slot_header_data(slot);
   uint16_t *pin = data;
-  if (*pin > (DLN2_GPIO_NUM_PINS - 1))
+  if (*pin > (_gpio_driver->gpio_count - 1))
     return -1;
 
   if (val)
@@ -237,7 +236,7 @@ bool dln2_handle_gpio(struct dln2_slot *slot) {
     LOG_INFO("DLN2_GPIO_GET_PIN_COUNT\n");
     if (dln2_slot_header_data_size(slot))
       return dln2_response_error(slot, DLN2_RES_INVALID_COMMAND_SIZE);
-    return dln2_response_u16(slot, DLN2_GPIO_NUM_PINS);
+    return dln2_response_u16(slot, _gpio_driver->gpio_count);
   case DLN2_GPIO_SET_DEBOUNCE:
     // The Linux driver can set the default debounce value, but it does not
     // enable it for the pin?! The DLN-2 adapter does not support debounce, but
@@ -335,7 +334,7 @@ void dln2_gpio_task(void) {
 }
 
 static void dln2_gpio_irq_callback(unsigned int gpio, uint32_t events) {
-  if (gpio >= DLN2_GPIO_NUM_PINS)
+  if (gpio >= _gpio_driver->gpio_count)
     return;
 
   bool prev_value = get_bit(gpio, prev_values);
